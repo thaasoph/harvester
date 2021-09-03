@@ -8,17 +8,15 @@ from multiprocessing import Process, Queue
 
 verbose_output = False
 
-# Lädt rekursiv alle verlinkten Artikel bis die maximale Tiefe erreicht ist
+# Recursively loads all sub pages until the depth is 0 (basecase)
 def load_recursive(page, queue, depth=2, scanned=set()):
     if depth <= 0 or (page in scanned and depth == 1):
-        #print('skipping %s because it already exists and no further depths are being analyzed anyway'%(page))
         return scanned
     print(f"Start recursive loading from page {page}")
     scanned.add(page)
 
     try:
         loaded_page = wikipedia.page(page)
-
         for sub_page in loaded_page.links:
             scanned = load_recursive(sub_page, queue, depth - 1,  scanned)
 
@@ -31,25 +29,25 @@ def load_recursive(page, queue, depth=2, scanned=set()):
     except wikipedia.PageError:
         return scanned
 
-    #sys.stdout.write("\r%i pages scanned" % (len(scanned)))
     return scanned
 
 
-# Sucht nach dem übergebenen Begriff und führt die rekursive auf jedes der Ergebnisse aus
-def load_recursive_by_search(search, process_all_results, queue, depth=1, scanned = set()):
-    search_result = wikipedia.search(search)
+# Performs the query and starts the recursive search for the first or all of the returned items. Depending on the parameters.
+def load_recursive_by_search(query, process_all_results, queue, depth=1, scanned = set()):
+    search_result = wikipedia.search(query)
     if not process_all_results:
         search_result = search_result[:1]
     for result in search_result:
         scanned = load_recursive(result, queue, depth,  scanned)
     return scanned
 
-def search_process(search_list, process_all_results, queue, depth):
+# Starts the search and scraping on all of the supplied queries
+def search_process(queries, process_all_results, queue, depth):
     scanned = set()
     print("pages found: %s"%(scanned))
-    for search in search_list:
-        print("starting with %s"%(search))
-        scanned = load_recursive_by_search(search, process_all_results, queue, depth, scanned)
+    for query in queries:
+        print("starting with %s"%(query))
+        scanned = load_recursive_by_search(query, process_all_results, queue, depth, scanned)
         print("%i sites have been scanned"%(len(scanned)))
     queue.put(None, block=True, timeout=None)
 
@@ -73,14 +71,13 @@ def main(args):
             counter.update(document['content'].split())
 
     if args.s:
-        for line in counter.most_common(1000):
+        for line in counter.most_common(args.s):
             word, _ =  line
             args.o.write("%s\n" % word)
     else:
         for line in counter.most_common():
             word, _ =  line
             args.o.write("%s\n" % word)
-
 
 
 if __name__ == "__main__":
